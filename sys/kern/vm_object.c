@@ -22,10 +22,15 @@ vm_object_t *vm_object_alloc(vm_pgr_type_t type) {
   TAILQ_INIT(&obj->list);
   RB_INIT(&obj->tree);
   obj->pager = &pagers[type];
+  obj->refs_counter = 1;
   return obj;
 }
 
 void vm_object_free(vm_object_t *obj) {
+  if (obj->refs_counter > 1) {
+    obj->refs_counter--;
+  }
+
   while (!TAILQ_EMPTY(&obj->list)) {
     vm_page_t *pg = TAILQ_FIRST(&obj->list);
     TAILQ_REMOVE(&obj->list, pg, obj.list);
