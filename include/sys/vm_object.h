@@ -11,6 +11,7 @@ typedef struct vm_object {
   size_t size;
   size_t npages;
   vm_pager_t *pager;
+  u_int refs_counter;
 } vm_object_t;
 
 vm_object_t *vm_object_alloc(vm_pgr_type_t type);
