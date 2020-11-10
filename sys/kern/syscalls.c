@@ -65,6 +65,7 @@ static int sys_getpid(proc_t *p, void *args, register_t *res) {
   klog("getpid()");
   *res = p->p_pid;
   return 0;
+  return 0;
 }
 
 /* https://pubs.opengroup.org/onlinepubs/9699919799/functions/getppid.html */

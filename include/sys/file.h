@@ -18,7 +18,7 @@ typedef int fo_close_t(file_t *f);
 typedef int fo_seek_t(file_t *f, off_t offset, int whence, off_t *newoffp);
 typedef int fo_stat_t(file_t *f, stat_t *sb);
 typedef int fo_ioctl_t(file_t *f, u_long cmd, void *data);
-typedef int fo_mmap(file_t *f, off_t *offset, size_t, int, int *, int *, struct uvm_object **, int *);
+typedef int fo_mmap(file_t *f, thread_t *td, size_t length, int prot, int flags, off_t offset);
 
 typedef struct {
   fo_read_t *fo_read;

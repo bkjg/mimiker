@@ -6,11 +6,14 @@
 #include <sys/mutex.h>
 #include <sys/libkern.h>
 #include <sys/stat.h>
+#include <sys/thread.h>
+#include <sys/proc.h>
 #include <sys/vfs.h>
 #include <sys/vnode.h>
 #include <sys/mount.h>
+#include <sys/vm_map.h>
 
-static POOL_DEFINE(P_VNODE, "vnode", sizeof(vnode_t));
+static PO OL_DEFINE(P_VNODE, "vnode", sizeof(vnode_t));
 
 /* Actually, vnode management should be much more complex than this, because
    this stub does not recycle vnodes, does not store them on a free list,
@@ -253,6 +256,18 @@ static int default_ioctl(file_t *f, u_long cmd, void *data) {
   return error;
 }
 
+static int default_mmap(file_t *f, thread_t *td, size_t length, int prot, int flags, off_t offset) {
+  vnode_t *v = f->f_vnode;
+  vm_map_t *vmap = td->td_proc->p_uspace;
+
+  int error;
+  vm_segment_t *seg;
+  if ((error = vm_map_alloc_segment(vmap, addr, length, prot, flags, &seg)))
+    return error;
+
+  return 0;
+}
+
 static fileops_t default_vnode_fileops = {
   .fo_read = default_vnread,
   .fo_write = default_vnwrite,
@@ -260,6 +275,7 @@ static fileops_t default_vnode_fileops = {
   .fo_seek = default_vnseek,
   .fo_stat = default_vnstat,
   .fo_ioctl = default_ioctl,
+  .fo_mmap = default_mmap,
 };
 
 int vnode_open_generic(vnode_t *v, int mode, file_t *fp) {
