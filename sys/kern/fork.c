@@ -65,9 +65,13 @@ int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp, int flags) {
     cred_fork(child, parent);
   }
 
-  /* Clone the entire process memory space. */
-  child->p_uspace = vm_map_clone(parent->p_uspace);
-
+  if ((flags & VM_SHARED) != 0) {
+    /* Share the parent's entire process memory with child and increment reference counter for vm_map_t struture */
+    child->p_uspace = vm_map_share(parent->p_uspace);
+  } else {
+    /* Clone the entire process memory space. */
+    child->p_uspace = vm_map_clone(parent->p_uspace);
+  }
   /* Find copied brk segment. */
   WITH_VM_MAP_LOCK (child->p_uspace) {
     child->p_sbrk = vm_map_find_segment(child->p_uspace, SBRK_START);

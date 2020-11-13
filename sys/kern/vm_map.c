@@ -11,6 +11,7 @@
 #include <sys/proc.h>
 #include <sys/sched.h>
 #include <sys/pcpu.h>
+#include <sys/refcnt.h>
 #include <machine/vm_param.h>
 
 struct vm_segment {
@@ -25,6 +26,7 @@ struct vm_map {
   TAILQ_HEAD(vm_map_list, vm_segment) entries;
   size_t nentries;
   pmap_t *pmap;
+  u_int ref_counter;
   mtx_t mtx; /* Mutex guarding vm_map structure and all its entries. */
 };
 
@@ -96,6 +98,7 @@ vm_map_t *vm_map_lookup(vaddr_t addr) {
 
 static void vm_map_setup(vm_map_t *map) {
   TAILQ_INIT(&map->entries);
+  map->ref_counter = 1;
   mtx_init(&map->mtx, 0);
 }
 
@@ -161,6 +164,13 @@ void vm_segment_destroy(vm_map_t *map, vm_segment_t *seg) {
 
 void vm_map_delete(vm_map_t *map) {
   WITH_MTX_LOCK (&map->mtx) {
+    if (map->ref_counter > 1) {
+      map->ref_counter--;
+      return;
+    }
+
+    assert(map->ref_counter == 1);
+
     vm_segment_t *seg, *next;
     TAILQ_FOREACH_SAFE (seg, &map->entries, link, next)
       vm_segment_destroy(map, seg);
@@ -333,6 +343,18 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
       TAILQ_INSERT_TAIL(&new_map->entries, seg, link);
       new_map->nentries++;
     }
+  }
+
+  return new_map;
+}
+
+vm_map_t *vm_map_share(vm_map_t *map) {
+  thread_t *td = thread_self();
+  assert(td->td_proc);
+
+  WITH_MTX_LOCK (&map->mtx) {
+    vm_map_t *new_map = map;
+    refcnt_acquire((refcnt_t *)&map->ref_counter);
   }
 
   return new_map;
