@@ -78,12 +78,10 @@ void vm_object_remove_page(vm_object_t *obj, vm_page_t *page) {
   page->offset = 0;
   page->object = NULL;
 
-  WITH_MTX_LOCK(&obj->mtx) {
-    TAILQ_REMOVE(&obj->list, page, obj.list);
-    RB_REMOVE(vm_pagetree, &obj->tree, page);
-    vm_page_free(page);
-    obj->npages--;
-  }
+  TAILQ_REMOVE(&obj->list, page, obj.list);
+  RB_REMOVE(vm_pagetree, &obj->tree, page);
+  vm_page_free(page);
+  obj->npages--;
 }
 
 void vm_object_remove_range(vm_object_t *object, off_t offset, size_t length) {
