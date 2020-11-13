@@ -352,10 +352,8 @@ vm_map_t *vm_map_share(vm_map_t *map) {
   thread_t *td = thread_self();
   assert(td->td_proc);
 
-  WITH_MTX_LOCK (&map->mtx) {
-    vm_map_t *new_map = map;
-    refcnt_acquire((refcnt_t *)&map->ref_counter);
-  }
+  vm_map_t *new_map = map;
+  refcnt_acquire((refcnt_t *)&map->ref_counter);
 
   return new_map;
 }
