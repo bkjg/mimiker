@@ -29,7 +29,7 @@ static int utest_generic(const char *name, int status_success) {
   snprintf(prefixed_name, TD_NAME_MAX, "utest-%s", name);
 
   pid_t cpid;
-  if (do_fork(utest_generic_thread, (void *)name, &cpid))
+  if (do_fork(utest_generic_thread, (void *)name, &cpid, 0))
     panic("Could not start test!");
 
   int status;

@@ -13,7 +13,7 @@
 #include <sys/mutex.h>
 #include <sys/queue.h>
 
-int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp) {
+int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp, int flags) {
   thread_t *td = thread_self();
   proc_t *parent = td->td_proc;
   char *name = td->td_name;
@@ -65,8 +65,14 @@ int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp) {
     cred_fork(child, parent);
   }
 
-  /* Clone the entire process memory space. */
-  child->p_uspace = vm_map_clone(parent->p_uspace);
+  if ((flags & VM_SHARED) != 0) {
+    /* Share the entire parent's process memory space with child
+     * and increment the reference counters */
+    child->p_uspace = vm_map_share(parent->p_uspace);
+  } else {
+    /* Clone the entire process memory space. */
+    child->p_uspace = vm_map_clone(parent->p_uspace);
+  }
 
   /* Find copied brk segment. */
   WITH_VM_MAP_LOCK (child->p_uspace) {

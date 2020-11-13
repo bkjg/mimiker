@@ -80,6 +80,7 @@ int vm_segment_resize(vm_map_t *map, vm_segment_t *seg, vaddr_t new_end);
 void vm_map_dump(vm_map_t *vm_map);
 
 vm_map_t *vm_map_clone(vm_map_t *map);
+vm_map_t *vm_map_share(vm_map_t *map);
 
 int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type);
 

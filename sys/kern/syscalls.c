@@ -53,7 +53,7 @@ static int sys_fork(proc_t *p, void *args, register_t *res) {
 
   klog("fork()");
 
-  if ((error = do_fork(NULL, NULL, &pid)))
+  if ((error = do_fork(NULL, NULL, &pid, 0)))
     return error;
 
   *res = pid;

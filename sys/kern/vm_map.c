@@ -338,6 +338,27 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
   return new_map;
 }
 
+vm_map_t *vm_map_share(vm_map_t *map) {
+  thread_t *td = thread_self();
+  assert(td->td_proc);
+
+  vm_map_t *new_map = vm_map_new();
+
+  WITH_MTX_LOCK (&map->mtx) {
+    vm_segment_t *it;
+    TAILQ_FOREACH (it, &map->entries, link) {
+      vm_object_t *obj = it->object;
+      /* TODO: do this operation with lock */
+      it->object->refs_counter++;
+      vm_segment_t *seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
+      TAILQ_INSERT_TAIL(&new_map->entries, seg, link);
+      new_map->nentries++;
+    }
+  }
+
+  return new_map;
+}
+
 int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   SCOPED_VM_MAP_LOCK(map);
 
