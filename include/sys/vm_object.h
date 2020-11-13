@@ -3,7 +3,7 @@
 
 #include <sys/vm.h>
 #include <sys/vm_pager.h>
-#include "mutex.h"
+#include <sys/mutex.h>
 
 /* At the moment assume object is owned by only one vm_map */
 typedef struct vm_object {
