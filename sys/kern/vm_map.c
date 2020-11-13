@@ -348,7 +348,6 @@ vm_map_t *vm_map_share(vm_map_t *map) {
     vm_segment_t *it;
     TAILQ_FOREACH (it, &map->entries, link) {
       vm_object_t *obj = it->object;
-      /* TODO: do this operation with lock */
       it->object->refs_counter++;
       vm_segment_t *seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       TAILQ_INSERT_TAIL(&new_map->entries, seg, link);
