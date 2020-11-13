@@ -29,13 +29,13 @@ vm_object_t *vm_object_alloc(vm_pgr_type_t type) {
 
 void vm_object_free(vm_object_t *obj) {
   if (obj->refs_counter > 1) {
-    WITH_MTX_LOCK(&obj->mtx) { obj->refs_counter--; }
+    WITH_MTX_LOCK (&obj->mtx) { obj->refs_counter--; }
     return;
   }
 
   assert(obj->refs_counter == 1);
 
-  WITH_MTX_LOCK(&obj->mtx) {
+  WITH_MTX_LOCK (&obj->mtx) {
     while (!TAILQ_EMPTY(&obj->list)) {
       vm_page_t *pg = TAILQ_FIRST(&obj->list);
       TAILQ_REMOVE(&obj->list, pg, obj.list);
@@ -116,7 +116,7 @@ vm_object_t *vm_object_clone(vm_object_t *obj) {
 void vm_map_object_dump(vm_object_t *obj) {
   vm_page_t *it;
 
-  WITH_MTX_LOCK(&obj->mtx) {
+  WITH_MTX_LOCK (&obj->mtx) {
     RB_FOREACH (it, vm_pagetree, &obj->tree)
       klog("(vm-obj) offset: 0x%08lx, size: %ld", it->offset, it->size);
   }
