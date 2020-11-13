@@ -13,7 +13,7 @@
 #include <sys/mutex.h>
 #include <sys/queue.h>
 
-int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp) {
+int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp, int flags) {
   thread_t *td = thread_self();
   proc_t *parent = td->td_proc;
   char *name = td->td_name;

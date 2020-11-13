@@ -172,7 +172,7 @@ int proc_getsid(pid_t pid, sid_t *sidp);
  * Must be called with parent::p_lock held. */
 void proc_wakeup_parent(proc_t *parent);
 
-int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp);
+int do_fork(void (*start)(void *), void *arg, pid_t *cldpidp, int flags);
 
 static inline bool proc_is_alive(proc_t *p) {
   return (p->p_state == PS_NORMAL || p->p_state == PS_STOPPED);
