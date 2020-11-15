@@ -126,7 +126,8 @@ vm_segment_t *vm_segment_alloc(vm_object_t *obj, vaddr_t start, vaddr_t end,
 }
 
 static void vm_segment_free(vm_segment_t *seg) {
-  /* we assume no other segment points to this object */
+  /* if some other segments point to this object,
+   * then vm_object_free will decrement the reference counter*/
   if (seg->object)
     vm_object_free(seg->object);
   pool_free(P_VMSEG, seg);
@@ -346,6 +347,10 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
 
         it->object = vm_object_alloc(VM_ANONYMOUS);
         it->object->backing_object = obj->backing_object;
+
+        /* increment the reference counter for the backing object because
+         * now one more object points to it */
+        refcnt_acquire(&obj->backing_object->ref_counter);
 
 //        obj = vm_object_clone(it->object);
 
