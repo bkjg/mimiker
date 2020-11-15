@@ -336,9 +336,21 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
         refcnt_acquire(&it->object->ref_counter);
         seg = it;
       } else {
-        /* vm_object_clone will clone the data from the vm_object_t
-         * and will return the new object with ref_counter equal to one */
-        obj = vm_object_clone(it->object);
+        /* "If the entry maps a privately mapped region (such as the data area
+         * or stack), the child must create a copy-on-write mapping of the
+         * region. The parent must be converted to a copy-on-write mapping of
+         * the region. If either process later tries to write the region, it
+         * will create a shadow object to hold the modified pages." */
+        obj = vm_object_alloc(VM_ANONYMOUS);
+        obj->backing_object = it->object;
+
+        it->object = vm_object_alloc(VM_ANONYMOUS);
+        it->object->backing_object = obj->backing_object;
+
+//        obj = vm_object_clone(it->object);
+
+        vm_object_set_allpages_readonly(it->object->backing_object);
+
         seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       }
       TAILQ_INSERT_TAIL(&new_map->entries, seg, link);

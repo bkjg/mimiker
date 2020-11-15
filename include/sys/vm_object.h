@@ -11,6 +11,8 @@ typedef struct vm_object {
   size_t size;
   size_t npages;
   vm_pager_t *pager;
+  refcnt_t ref_counter;
+  vm_object_t *backing_object; /* the original object this object is shadow for */
 } vm_object_t;
 
 vm_object_t *vm_object_alloc(vm_pgr_type_t type);
@@ -21,5 +23,6 @@ void vm_object_remove_range(vm_object_t *obj, off_t offset, size_t length);
 vm_page_t *vm_object_find_page(vm_object_t *obj, off_t offset);
 vm_object_t *vm_object_clone(vm_object_t *obj);
 void vm_map_object_dump(vm_object_t *obj);
+void vm_object_set_allpages_readonly(vm_object_t *obj);
 
 #endif /* !_SYS_VM_OBJECT_H_ */

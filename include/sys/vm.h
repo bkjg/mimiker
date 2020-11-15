@@ -16,6 +16,7 @@ typedef enum {
   PG_MANAGED = 0x02,    /* a page is on a freeq */
   PG_REFERENCED = 0x04, /* page has been accessed since last check */
   PG_MODIFIED = 0x08,   /* page has been modified since last check */
+  PG_READONLY = 0x10,   /* page is readonly */
 } __packed pg_flags_t;
 
 typedef enum {
