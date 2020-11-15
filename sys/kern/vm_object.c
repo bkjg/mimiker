@@ -121,6 +121,6 @@ void vm_object_set_allpages_readonly(vm_object_t *obj) {
 
   vm_page_t *pg;
   TAILQ_FOREACH (pg, &obj->list, obj.list) {
-    pg->flags |= PG_READONLY;
+    pmap_make_readonly(pg);
   }
 }
