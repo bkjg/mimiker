@@ -26,7 +26,7 @@ struct vm_map {
   TAILQ_HEAD(vm_map_list, vm_segment) entries;
   size_t nentries;
   pmap_t *pmap;
-  u_int ref_counter;
+  refcnt_t ref_counter;
   mtx_t mtx; /* Mutex guarding vm_map structure and all its entries. */
 };
 
@@ -164,12 +164,11 @@ void vm_segment_destroy(vm_map_t *map, vm_segment_t *seg) {
 
 void vm_map_delete(vm_map_t *map) {
   WITH_MTX_LOCK (&map->mtx) {
-    if (map->ref_counter > 1) {
-      map->ref_counter--;
+    if (!refcnt_release(&map->ref_counter)) {
       return;
     }
 
-    assert(map->ref_counter == 1);
+    assert(map->ref_counter == 0);
 
     vm_segment_t *seg, *next;
     TAILQ_FOREACH_SAFE (seg, &map->entries, link, next)
@@ -353,7 +352,7 @@ vm_map_t *vm_map_share(vm_map_t *map) {
   assert(td->td_proc);
 
   vm_map_t *new_map = map;
-  refcnt_acquire((refcnt_t *)&map->ref_counter);
+  refcnt_acquire(&map->ref_counter);
 
   return new_map;
 }
