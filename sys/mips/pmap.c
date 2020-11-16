@@ -495,14 +495,37 @@ void pmap_delete(pmap_t *pmap) {
 void pmap_make_readonly(vm_page_t *pg) {
   pv_entry_t *pv;
   TAILQ_FOREACH (pv, &pg->pv_list, page_link) {
-    pmap_protect(pv->pmap, pv->va, pv->va + pg->size * PAGESIZE, VM_PROT_READ);
+    pmap_t *pmap = pv->pmap;
+    vaddr_t start = pv->va;
+    vaddr_t end = pv->va + pg->size * PAGESIZE;
+
+    WITH_MTX_LOCK (&pmap->mtx) {
+      for (vaddr_t va = start; va < end; va += PAGESIZE) {
+        pte_t pte = pmap_pte_read(pmap, va);
+        if (pte == 0)
+          continue;
+
+        pmap_pte_write(pmap, va, (pte & ~PTE_PROT_MASK) & (~PTE_DIRTY), 0);
+      }
+    }
   }
 }
 
 void pmap_remove_readonly(vm_page_t *pg) {
   pv_entry_t *pv;
   TAILQ_FOREACH (pv, &pg->pv_list, page_link) {
-    pmap_protect(pv->pmap, pv->va, pv->va + pg->size * PAGESIZE,
-                 VM_PROT_READ | VM_PROT_WRITE);
+    pmap_t *pmap = pv->pmap;
+    vaddr_t start = pv->va;
+    vaddr_t end = pv->va + pg->size * PAGESIZE;
+
+    WITH_MTX_LOCK (&pmap->mtx) {
+      for (vaddr_t va = start; va < end; va += PAGESIZE) {
+        pte_t pte = pmap_pte_read(pmap, va);
+        if (pte == 0)
+          continue;
+
+        pmap_pte_write(pmap, va, (pte & ~PTE_PROT_MASK) | PTE_DIRTY, 0);
+      }
+    }
   }
 }
