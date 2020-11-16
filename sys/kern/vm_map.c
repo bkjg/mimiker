@@ -352,7 +352,7 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
          * now one more object points to it */
         refcnt_acquire(&obj->backing_object->ref_counter);
 
-//        obj = vm_object_clone(it->object);
+        //        obj = vm_object_clone(it->object);
 
         /* I assumed no more objects points to it->object->backing_object than
          * parent and child because then this memory would have to be
@@ -407,10 +407,13 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
 
   klog("Page fault, found frame: %p", frame);
 
-  if (frame == NULL && (obj->backing_object == NULL || fault_type != VM_PROT_READ)) {
+  if (frame == NULL &&
+      (obj->backing_object == NULL || fault_type != VM_PROT_READ)) {
     frame = obj->pager->pgr_fault(obj, offset);
-    klog("Page fault, after calling pager found frame (NOT PROT_READ): %p", frame);
-  } else if (frame == NULL && obj->backing_object && fault_type == VM_PROT_READ) {
+    klog("Page fault, after calling pager found frame (NOT PROT_READ): %p",
+         frame);
+  } else if (frame == NULL && obj->backing_object &&
+             fault_type == VM_PROT_READ) {
     frame = vm_object_find_page(obj->backing_object, offset);
     klog("Page fault, after calling pager found frame (PROT_READ): %p", frame);
   }

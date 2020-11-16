@@ -124,7 +124,5 @@ void vm_object_set_allpages_readonly(vm_object_t *obj) {
   SCOPED_MTX_LOCK(&obj->mtx);
 
   vm_page_t *pg;
-  TAILQ_FOREACH (pg, &obj->list, obj.list) {
-    pmap_make_readonly(pg);
-  }
+  TAILQ_FOREACH (pg, &obj->list, obj.list) { pmap_make_readonly(pg); }
 }
