@@ -17,7 +17,17 @@ static vm_page_t *anon_pager_fault(vm_object_t *obj, off_t offset) {
   return new_pg;
 }
 
+static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
+  assert(obj != NULL);
+  assert(obj->backing_object != NULL);
+
+  vm_page_t *pg = vm_object_find_page(obj->backing_object, offset);
+
+  return pg;
+}
+
 vm_pager_t pagers[] = {
   [VM_DUMMY] = {.pgr_fault = dummy_pager_fault},
   [VM_ANONYMOUS] = {.pgr_fault = anon_pager_fault},
+  [VM_SHADOW] = {.pgr_fault = shadow_pager_fault},
 };

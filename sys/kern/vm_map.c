@@ -342,10 +342,10 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
          * region. The parent must be converted to a copy-on-write mapping of
          * the region. If either process later tries to write the region, it
          * will create a shadow object to hold the modified pages." */
-        obj = vm_object_alloc(VM_ANONYMOUS);
+        obj = vm_object_alloc(VM_SHADOW);
         obj->backing_object = it->object;
 
-        it->object = vm_object_alloc(VM_ANONYMOUS);
+        it->object = vm_object_alloc(VM_SHADOW);
         it->object->backing_object = obj->backing_object;
 
         /* increment the reference counter for the backing object because
@@ -354,6 +354,9 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
 
 //        obj = vm_object_clone(it->object);
 
+        /* I assumed no more objects points to it->object->backing_object than
+         * parent and child because then this memory would have to be
+         * shared and private at the same time */
         vm_object_set_allpages_readonly(it->object->backing_object);
 
         seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
@@ -393,6 +396,7 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
 
   assert(seg->start <= fault_addr && fault_addr < seg->end);
 
+  klog("Some page fault occurred");
   vm_object_t *obj = seg->object;
 
   assert(obj != NULL);
@@ -401,8 +405,12 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   vaddr_t offset = fault_page - seg->start;
   vm_page_t *frame = vm_object_find_page(seg->object, offset);
 
+  klog("Page fault, found frame: %p", frame);
+
   if (frame == NULL)
     frame = obj->pager->pgr_fault(obj, offset);
+
+  klog("Page fault, after calling pager found frame: %p", frame);
 
   if (frame == NULL)
     return EFAULT;

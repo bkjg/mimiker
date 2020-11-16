@@ -36,6 +36,10 @@ void vm_object_free(vm_object_t *obj) {
       TAILQ_REMOVE(&obj->list, pg, obj.list);
       vm_page_free(pg);
     }
+
+    if (obj->backing_object) {
+      vm_object_free(obj->backing_object);
+    }
   }
   pool_free(P_VMOBJ, obj);
 }
