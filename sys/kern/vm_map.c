@@ -415,7 +415,7 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
     frame = vm_object_find_page(obj->backing_object, offset);
 
     if (frame == NULL) {
-      frame = obj->pager->pgr_fault(obj->backing_object, offset);
+      frame = obj->backing_object->pager->pgr_fault(obj, offset);
     }
     klog("Page fault, after calling pager found frame (PROT_READ): %p", frame);
   }
