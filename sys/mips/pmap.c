@@ -498,3 +498,10 @@ void pmap_make_readonly(vm_page_t *pg) {
     pmap_protect(pv->pmap, pv->va, pv->va + pg->size * PAGESIZE, VM_PROT_READ);
   }
 }
+
+void pmap_remove_readonly(vm_page_t *pg) {
+  pv_entry_t *pv;
+  TAILQ_FOREACH(pv, &pg->pv_list, page_link) {
+    pmap_protect(pv->pmap, pv->va, pv->va + pg->size * PAGESIZE, VM_PROT_READ | VM_PROT_WRITE);
+  }
+}

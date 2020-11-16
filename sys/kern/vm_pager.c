@@ -22,8 +22,12 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
   assert(obj->backing_object != NULL);
 
   vm_page_t *pg = vm_object_find_page(obj->backing_object, offset);
+  vm_page_t *new_pg = vm_page_alloc(1);
+  pmap_copy_page(pg, new_pg);
+  pmap_remove_readonly(new_pg);
+  vm_object_add_page(obj, offset, new_pg);
 
-  return pg;
+  return new_pg;
 }
 
 vm_pager_t pagers[] = {

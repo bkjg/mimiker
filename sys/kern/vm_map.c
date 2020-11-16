@@ -396,7 +396,7 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
 
   assert(seg->start <= fault_addr && fault_addr < seg->end);
 
-  klog("Some page fault occurred");
+  klog("Some page fault occurred: %d", fault_type);
   vm_object_t *obj = seg->object;
 
   assert(obj != NULL);
@@ -407,8 +407,13 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
 
   klog("Page fault, found frame: %p", frame);
 
-  if (frame == NULL)
+  if (frame == NULL && (obj->backing_object == NULL || fault_type != VM_PROT_READ)) {
     frame = obj->pager->pgr_fault(obj, offset);
+    klog("Page fault, after calling pager found frame (NOT PROT_READ): %p", frame);
+  } else if (frame == NULL && obj->backing_object && fault_type == VM_PROT_READ) {
+    frame = vm_object_find_page(obj->backing_object, offset);
+    klog("Page fault, after calling pager found frame (PROT_READ): %p", frame);
+  }
 
   klog("Page fault, after calling pager found frame: %p", frame);
 
