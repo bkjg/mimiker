@@ -150,5 +150,10 @@ static int findspace_demo(void) {
   return KTEST_SUCCESS;
 }
 
+static int copy_on_write_demo(void) {
+  return KTEST_SUCCESS;
+}
+
 KTEST_ADD(vm, paging_on_demand_and_memory_protection_demo, 0);
 KTEST_ADD(findspace, findspace_demo, 0);
+KTEST_ADD(copy_on_write, copy_on_write_demo, 0);
