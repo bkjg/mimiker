@@ -336,7 +336,7 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
       if (it->flags & VM_SHARED) {
         refcnt_acquire(&it->object->ref_counter);
         seg = it;
-      } else {
+      } else if (it->flags & VM_TEST) {
         /* "If the entry maps a privately mapped region (such as the data area
          * or stack), the child must create a copy-on-write mapping of the
          * region. The parent must be converted to a copy-on-write mapping of
@@ -363,6 +363,9 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
          * shared and private at the same time */
         vm_object_set_allpages_readonly(it->object->backing_object);
 
+        seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
+      } else {
+        obj = vm_object_clone(it->object);
         seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       }
       TAILQ_INSERT_TAIL(&new_map->entries, seg, link);

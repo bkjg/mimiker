@@ -34,6 +34,7 @@ typedef enum {
   VM_PRIVATE = 4, /* changes are private */
   VM_FIXED = 8,   /* map addr must be exactly as requested */
   VM_STACK = 16,  /* region grows down, like a stack */
+  VM_TEST = 32    /* added only for tests purposes */
 } vm_flags_t;
 
 typedef struct vm_page vm_page_t;
