@@ -9,6 +9,8 @@
 #include <sys/thread.h>
 #include <sys/ktest.h>
 #include <sys/sched.h>
+#include <sys/proc.h>
+#include <sys/wait.h>
 
 static int paging_on_demand_and_memory_protection_demo(void) {
   /* This test mustn't be preempted since PCPU's user-space vm_map will not be
@@ -150,7 +152,74 @@ static int findspace_demo(void) {
   return KTEST_SUCCESS;
 }
 
+static void cow_routine(void *arg) {
+  proc_t *p = proc_self();
+
+  const vaddr_t start = 0x10000000;
+  vm_map_t *map = p->p_uspace;
+
+  vm_segment_t *seg = vm_map_find_segment(map, start);
+
+  klog("Allocating segment finished. Pointer to backing object is equal to: %p",
+       get_backing_object(seg));
+
+  assert(1 == 0);
+}
+
 static int copy_on_write_demo(void) {
+  vm_map_t *orig = vm_map_user();
+
+  vm_map_t *umap = vm_map_new();
+
+  assert(umap != NULL);
+
+  vm_map_activate(umap);
+
+  const vaddr_t start = 0x10000000;
+  const vaddr_t end = 0x30000000;
+
+  vm_segment_t *seg;
+  vm_object_t *obj;
+
+  int error;
+
+  obj = vm_object_alloc(VM_ANONYMOUS);
+
+  assert(obj != NULL);
+
+  seg = vm_segment_alloc(obj, start, end, VM_PROT_WRITE | VM_PROT_READ);
+  klog("Allocating segment finished.");
+  klog("Allocating segment finished. Pointer to segment is equal to: %p", seg);
+
+  assert(seg != NULL);
+
+  error = vm_map_insert(umap, seg, VM_FIXED | VM_TEST);
+  klog("Inserting segment finished. Error code is as follows: %d", error);
+  klog("Inserting segment finished. Pointer to backing object is equal to: %p",
+       get_backing_object(seg));
+  assert(error == 0);
+
+  error = vm_page_fault(umap, start + PAGESIZE, VM_PROT_WRITE);
+
+  klog("After page fault. Error code is as follows: %d", error);
+  assert(error == 0);
+
+  int cpid;
+  error = do_fork(cow_routine, NULL, &cpid);
+
+  klog("Creating child finished. Error code is as follows: %d", error);
+  assert(error == 0);
+
+  int status;
+  pid_t pid;
+  do_waitpid(cpid, &status, 0, &pid);
+  assert(cpid == pid);
+
+  vm_map_delete(umap);
+
+  /* Restore original vm_map */
+  vm_map_activate(orig);
+
   return KTEST_SUCCESS;
 }
 

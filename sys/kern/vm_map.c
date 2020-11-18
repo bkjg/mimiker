@@ -329,11 +329,14 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
   vm_map_t *new_map = vm_map_new();
 
   WITH_MTX_LOCK (&map->mtx) {
+    klog("vm_map_clone, %p %d", map->entries.tqh_first, map->nentries);
     vm_segment_t *it;
     TAILQ_FOREACH (it, &map->entries, link) {
       vm_object_t *obj;
       vm_segment_t *seg;
+      klog("TAILQ_FOREACH");
       if (it->flags & VM_SHARED) {
+        klog("shared object");
         refcnt_acquire(&it->object->ref_counter);
         seg = it;
       } else if (it->flags & VM_TEST) {
@@ -365,6 +368,7 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
 
         seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       } else {
+        klog("clone vm_object");
         obj = vm_object_clone(it->object);
         seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       }
@@ -437,4 +441,9 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   pmap_enter(map->pmap, fault_page, frame, seg->prot, 0);
 
   return 0;
+}
+
+vm_object_t *get_backing_object(vm_segment_t *seg) {
+  assert(seg->object != NULL);
+  return seg->object->backing_object;
 }
