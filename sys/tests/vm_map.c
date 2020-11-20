@@ -155,9 +155,6 @@ static int findspace_demo(void) {
 static void cow_routine(void *arg) {
   proc_t *p = proc_self();
 
-  int error = session_enter(p);
-  assert(error == 0);
-
   const vaddr_t start = 0x10000000;
   vm_map_t *map = p->p_uspace;
 
@@ -175,7 +172,7 @@ static void cow_routine(void *arg) {
   vm_map_unlock(map);
 
   /* try to read page, which is copy-on-write */
-  error = vm_page_fault(map, start, VM_PROT_READ);
+  int error = vm_page_fault(map, start, VM_PROT_READ);
 
   assert(error == 0);
 
@@ -216,14 +213,17 @@ static void cow_routine(void *arg) {
   proc_exit(0);
 }
 
-static int copy_on_write_demo(void) {
-//  vm_map_t *orig = vm_map_user();
+static int copy_on_write_simple_demo(void) {
+  vm_map_t *orig = vm_map_user();
 
-  vm_map_t *umap = vm_map_user();
+  vm_map_t *umap = vm_map_new();
 
   assert(umap != NULL);
 
   vm_map_activate(umap);
+
+  thread_t *td = thread_self();
+  td->td_proc->p_uspace = umap;
 
   const vaddr_t start = 0x10000000;
   const vaddr_t end = 0x30000000;
@@ -269,6 +269,133 @@ static int copy_on_write_demo(void) {
 
   klog("Child finished and parent woke up!");
 
+  vm_map_delete(umap);
+
+  /* Restore original vm_map */
+  vm_map_activate(orig);
+  td->td_proc->p_uspace = orig;
+
+  return KTEST_SUCCESS;
+}
+
+static void cow_routine_grandchild(void *arg) {
+  proc_t *p = proc_self();
+  const vaddr_t start = 0x10000000;
+  vm_map_t *map = p->p_uspace;
+
+  vm_map_dump(map);
+  klog("grandchild is going to lock mutex");
+  vm_map_lock(map);
+  klog("yay mutex is locked");
+  vm_segment_t *seg = vm_map_find_segment(map, start);
+  klog("segment found yay, %p", seg);
+  assert(seg != NULL);
+  klog("Allocating segment finished. Pointer to backing object is equal to: %p",
+       get_backing_object(seg));
+
+  vm_map_unlock(map);
+
+  /* try to read page, which is copy-on-write */
+  int error = vm_page_fault(map, start, VM_PROT_READ);
+
+  assert(error == 0);
+
+  klog("page fault for read succeeded");
+
+  vm_segment_t *prev_seg = seg;
+  vm_map_lock(map);
+  seg = vm_map_find_segment(map, start);
+  klog("grandchild_cow_routine, segment: %p, object of segment: %p", seg);
+  vm_map_unlock(map);
+  assert(seg == prev_seg);
+
+
+  vm_page_t *page = vm_object_find_page(get_object(seg), start - get_segment_start(seg));
+  klog("(after read fault) previous segment: %p, current segment: %p", prev_seg, seg);
+  error = vm_page_fault(map, start, VM_PROT_WRITE);
+
+  assert(error == 0);
+
+  klog("page fault for write succeeded");
+
+  prev_seg = seg;
+  vm_map_lock(map);
+  seg = vm_map_find_segment(map, start);
+  vm_map_unlock(map);
+  /* we should find some other pointer, because now we are copying the page */
+
+  klog("(after write fault) previous segment: %p, current segment: %p", prev_seg, seg);
+  assert(seg == prev_seg);
+  vm_page_t *prev_page = page;
+  page = vm_object_find_page(get_object(seg), start - get_segment_start(seg));
+  klog("previous page: %p, current page: %p", prev_page, page);
+  assert(page != prev_page);
+  //assert(1 == 0);
+
+  SCOPED_MTX_LOCK(&p->p_lock);
+
+  proc_exit(0);
+}
+
+static void cow_routine_child(void *arg) {
+  proc_t *p = proc_self();
+
+  int cpid;
+  int error = do_fork(cow_routine_grandchild, NULL, &cpid);
+  assert(error == 0);
+
+  int status;
+  pid_t pid;
+  do_waitpid(cpid, &status, 0, &pid);
+  assert(cpid == pid);
+
+  klog("Grandchild finished and child woke up!");
+
+  SCOPED_MTX_LOCK(&p->p_lock);
+
+  proc_exit(0);
+}
+
+static int copy_on_write_demo(void) {
+//  vm_map_t *orig = vm_map_user();
+
+  vm_map_t *umap = vm_map_user();
+
+  assert(umap != NULL);
+
+  vm_map_activate(umap);
+
+  const vaddr_t start = 0x10000000;
+  const vaddr_t end = 0x30000000;
+
+  vm_segment_t *seg;
+  vm_object_t *obj;
+
+  obj = vm_object_alloc(VM_ANONYMOUS);
+
+  assert(obj != NULL);
+
+
+  seg = vm_segment_alloc(obj, start, end, VM_PROT_WRITE | VM_PROT_READ);
+  assert(seg != NULL);
+
+  int error = vm_map_insert(umap, seg, VM_FIXED | VM_TEST);
+  assert(error == 0);
+
+  error = vm_page_fault(umap, start, VM_PROT_WRITE);
+  assert(error == 0);
+
+  int cpid;
+  error = do_fork(cow_routine_child, NULL, &cpid);
+  assert(error == 0);
+
+  int status;
+  pid_t pid;
+  do_waitpid(cpid, &status, 0, &pid);
+  assert(cpid == pid);
+
+  klog("Child finished and parent woke up!");
+
 //  vm_map_delete(umap);
 
   /* Restore original vm_map */
@@ -279,4 +406,5 @@ static int copy_on_write_demo(void) {
 
 KTEST_ADD(vm, paging_on_demand_and_memory_protection_demo, 0);
 KTEST_ADD(findspace, findspace_demo, 0);
-KTEST_ADD(copy_on_write, copy_on_write_demo, 0);
+KTEST_ADD(copy_on_write, copy_on_write_simple_demo, 0);
+KTEST_ADD(copy_on_write_child_and_grandchild, copy_on_write_demo, 0);

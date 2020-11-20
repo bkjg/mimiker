@@ -23,9 +23,17 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
   assert(obj->backing_object != NULL);
 
   assert(obj != obj->backing_object);
-  vm_page_t *pg = vm_object_find_page(obj->backing_object, offset);
 
+  vm_page_t *pg = NULL;
+  vm_object_t *it = obj;
+  while (!pg && it->backing_object) {
+    vm_object_find_page(it->backing_object, offset);
+    it = it->backing_object;
+  }
+
+  klog("shadow_pager_fault");
   if (pg) {
+    klog("my backing object has this page!");
     vm_page_t *new_pg = vm_page_alloc(1);
     pmap_copy_page(pg, new_pg);
     vm_object_add_page(obj, offset, new_pg);
@@ -33,8 +41,16 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
     pmap_remove_readonly(new_pg);
     return new_pg;
   } else {
-    klog("backing_object: %p, object: %p", obj->backing_object);
-    return obj->backing_object->pager->pgr_fault(obj, offset);
+    klog("I have to create this page by myself unfortunately");
+    klog("while loop");
+    while(it->backing_object) {
+      klog("loop: %p %p", it, it->backing_object);
+      it = it->backing_object;
+    }
+
+    klog("time to call pager!");
+    //klog("backing_object: %p, object: %p, pager: %p", obj->backing_object, obj, obj->backing_object->pager->pgr_fault);
+    return it->pager->pgr_fault(obj, offset);
   }
 }
 

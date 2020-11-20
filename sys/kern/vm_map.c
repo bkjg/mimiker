@@ -372,6 +372,7 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
         obj = vm_object_clone(it->object);
         seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       }
+      seg->flags = it->flags;
       TAILQ_INSERT_TAIL(&new_map->entries, seg, link);
       new_map->nentries++;
     }
@@ -435,7 +436,12 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
          frame);
   } else if (frame == NULL && obj->backing_object &&
              fault_type == VM_PROT_READ) {
-    frame = vm_object_find_page(obj->backing_object, offset);
+    vm_object_t *it = obj;
+    while (!frame && it->backing_object) {
+      klog("frame: %p, backing object: %p", frame, it->backing_object);
+      frame = vm_object_find_page(it->backing_object, offset);
+      it = it->backing_object;
+    }
 
     if (frame == NULL) {
       frame = obj->backing_object->pager->pgr_fault(obj, offset);

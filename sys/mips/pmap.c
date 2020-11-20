@@ -477,11 +477,13 @@ void pmap_delete(pmap_t *pmap) {
     pg = vm_page_find(pa);
     kprintf("DEBUG: pmap_delete: page: %p\n", pg);
 
-    if (pg)
+    if (pg) {
       TAILQ_REMOVE(&pg->pv_list, pv, page_link);
-
+    }
     TAILQ_REMOVE(&pmap->pv_list, pv, pmap_link);
-    pool_free(P_PV, pv);
+    if (pg) {
+      pool_free(P_PV, pv);
+    }
   }
 
   while (!TAILQ_EMPTY(&pmap->pte_pages)) {
