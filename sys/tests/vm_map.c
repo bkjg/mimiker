@@ -158,18 +158,25 @@ static void cow_routine(void *arg) {
   const vaddr_t start = 0x10000000;
   vm_map_t *map = p->p_uspace;
 
+  vm_map_dump(map);
+  klog("child is going to lock mutex");
+  vm_map_lock(map);
+  klog("yay mutex is locked");
+  klog("the borders of segments are: %p", vm_map_find_segment(map, start));
   vm_segment_t *seg = vm_map_find_segment(map, start);
-
+  klog("segment found yay, %p", seg);
+  assert(seg != NULL);
   klog("Allocating segment finished. Pointer to backing object is equal to: %p",
        get_backing_object(seg));
+  vm_map_unlock(map);
 
   assert(1 == 0);
 }
 
 static int copy_on_write_demo(void) {
-  vm_map_t *orig = vm_map_user();
+  //vm_map_t *orig = vm_map_user();
 
-  vm_map_t *umap = vm_map_new();
+  vm_map_t *umap = vm_map_user();
 
   assert(umap != NULL);
 
@@ -204,6 +211,7 @@ static int copy_on_write_demo(void) {
   klog("After page fault. Error code is as follows: %d", error);
   assert(error == 0);
 
+  vm_map_switch(thread_self());
   int cpid;
   error = do_fork(cow_routine, NULL, &cpid);
 
@@ -218,7 +226,7 @@ static int copy_on_write_demo(void) {
   vm_map_delete(umap);
 
   /* Restore original vm_map */
-  vm_map_activate(orig);
+  //vm_map_activate(orig);
 
   return KTEST_SUCCESS;
 }

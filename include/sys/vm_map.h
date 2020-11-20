@@ -83,4 +83,6 @@ vm_map_t *vm_map_clone(vm_map_t *map);
 
 int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type);
 
+/* added only for tests purposes */
+vm_object_t *get_backing_object(vm_segment_t *seg);
 #endif /* !_SYS_VM_MAP_H_ */

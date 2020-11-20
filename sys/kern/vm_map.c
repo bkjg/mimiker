@@ -445,5 +445,6 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
 
 vm_object_t *get_backing_object(vm_segment_t *seg) {
   assert(seg->object != NULL);
+  klog("get_backing_object: my object is %p", seg->object);
   return seg->object->backing_object;
 }
