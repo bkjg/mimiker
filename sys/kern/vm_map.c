@@ -381,6 +381,8 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
 }
 
 int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
+  /* I have to set somehow that is not my page, so if I try to write to it,
+   * I would like not to return address, but to copy this page */
   SCOPED_VM_MAP_LOCK(map);
 
   vm_segment_t *seg = vm_map_find_segment(map, fault_addr);
@@ -389,6 +391,8 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
     klog("Tried to access unmapped memory region: 0x%08lx!", fault_addr);
     return EFAULT;
   }
+
+  klog("Fault_type: %d, prot in seg: %d", fault_type, seg->prot);
 
   if (seg->prot == VM_PROT_NONE) {
     klog("Cannot access to address: 0x%08lx", fault_addr);
@@ -416,7 +420,13 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   vaddr_t offset = fault_page - seg->start;
   vm_page_t *frame = vm_object_find_page(seg->object, offset);
 
-  klog("Page fault, found frame: %p", frame);
+  if (frame) {
+    klog("Page fault, found frame: %p, object of frame is %p and our object is: %p",
+         frame, frame->object, obj);
+  }
+  if (frame && frame->object != obj && fault_type != VM_PROT_READ) {
+    frame = NULL;
+  }
 
   if (frame == NULL &&
       (obj->backing_object == NULL || fault_type != VM_PROT_READ)) {
@@ -438,8 +448,23 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   if (frame == NULL)
     return EFAULT;
 
+  klog("Found frame %p and object of frame is %p, our object is %p", frame, frame->object, obj);
+  klog("fault page is %p and frame is %p", fault_page, frame);
+  /* in copy-on-write in case of read, I shouldn't enter, that's what I think at
+   * this point of time */
+  klog("now, the page for our offset is %p", vm_object_find_page(seg->object, offset));
+
   pmap_enter(map->pmap, fault_page, frame, seg->prot, 0);
 
+  vm_page_t *prev_page = frame;
+
+  if (fault_type & VM_PROT_WRITE) {
+    frame = vm_object_find_page(seg->object, offset);
+
+    klog("page_fault: previous page: %p, current page: %p", prev_page, frame);
+
+    assert(prev_page == frame);
+  }
   return 0;
 }
 
@@ -447,4 +472,12 @@ vm_object_t *get_backing_object(vm_segment_t *seg) {
   assert(seg->object != NULL);
   klog("get_backing_object: my object is %p", seg->object);
   return seg->object->backing_object;
+}
+
+vm_object_t *get_object(vm_segment_t *seg) {
+  return seg->object;
+}
+
+vaddr_t get_segment_start(vm_segment_t *seg) {
+  return seg->start;
 }

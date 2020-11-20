@@ -3,6 +3,7 @@
 #include <sys/vm_object.h>
 #include <sys/vm_pager.h>
 #include <sys/vm_physmem.h>
+#include <sys/klog.h>
 
 static vm_page_t *dummy_pager_fault(vm_object_t *obj, off_t offset) {
   return NULL;
@@ -21,6 +22,7 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
   assert(obj != NULL);
   assert(obj->backing_object != NULL);
 
+  assert(obj != obj->backing_object);
   vm_page_t *pg = vm_object_find_page(obj->backing_object, offset);
 
   if (pg) {
@@ -31,6 +33,7 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
     pmap_remove_readonly(new_pg);
     return new_pg;
   } else {
+    klog("backing_object: %p, object: %p", obj->backing_object);
     return obj->backing_object->pager->pgr_fault(obj, offset);
   }
 }

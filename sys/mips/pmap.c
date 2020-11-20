@@ -468,14 +468,18 @@ pmap_t *pmap_new(void) {
 
 void pmap_delete(pmap_t *pmap) {
   assert(pmap != pmap_kernel());
-
+  kprintf("DEBUG: pmap_delete: %p\n", pmap);
   while (!TAILQ_EMPTY(&pmap->pv_list)) {
     pv_entry_t *pv = TAILQ_FIRST(&pmap->pv_list);
     vm_page_t *pg;
     paddr_t pa;
     pmap_extract_nolock(pmap, pv->va, &pa);
     pg = vm_page_find(pa);
-    TAILQ_REMOVE(&pg->pv_list, pv, page_link);
+    kprintf("DEBUG: pmap_delete: page: %p\n", pg);
+
+    if (pg)
+      TAILQ_REMOVE(&pg->pv_list, pv, page_link);
+
     TAILQ_REMOVE(&pmap->pv_list, pv, pmap_link);
     pool_free(P_PV, pv);
   }

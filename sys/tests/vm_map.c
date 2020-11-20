@@ -155,6 +155,9 @@ static int findspace_demo(void) {
 static void cow_routine(void *arg) {
   proc_t *p = proc_self();
 
+  int error = session_enter(p);
+  assert(error == 0);
+
   const vaddr_t start = 0x10000000;
   vm_map_t *map = p->p_uspace;
 
@@ -168,13 +171,53 @@ static void cow_routine(void *arg) {
   assert(seg != NULL);
   klog("Allocating segment finished. Pointer to backing object is equal to: %p",
        get_backing_object(seg));
+
   vm_map_unlock(map);
 
-  assert(1 == 0);
+  /* try to read page, which is copy-on-write */
+  error = vm_page_fault(map, start, VM_PROT_READ);
+
+  assert(error == 0);
+
+  klog("page fault for read succeeded");
+
+  vm_segment_t *prev_seg = seg;
+  vm_map_lock(map);
+  seg = vm_map_find_segment(map, start);
+  klog("cow_routine, segment: %p, object of segment: %p", seg);
+  vm_map_unlock(map);
+  assert(seg == prev_seg);
+
+
+  vm_page_t *page = vm_object_find_page(get_object(seg), start - get_segment_start(seg));
+  klog("(after read fault) previous segment: %p, current segment: %p", prev_seg, seg);
+  error = vm_page_fault(map, start, VM_PROT_WRITE);
+
+  assert(error == 0);
+
+  klog("page fault for write succeeded");
+
+  prev_seg = seg;
+  vm_map_lock(map);
+  seg = vm_map_find_segment(map, start);
+  vm_map_unlock(map);
+  /* we should find some other pointer, because now we are copying the page */
+
+  klog("(after write fault) previous segment: %p, current segment: %p", prev_seg, seg);
+  assert(seg == prev_seg);
+  vm_page_t *prev_page = page;
+  page = vm_object_find_page(get_object(seg), start - get_segment_start(seg));
+  klog("previous page: %p, current page: %p", prev_page, page);
+  assert(page != prev_page);
+  //assert(1 == 0);
+
+  SCOPED_MTX_LOCK(&p->p_lock);
+
+  proc_exit(0);
 }
 
 static int copy_on_write_demo(void) {
-  //vm_map_t *orig = vm_map_user();
+//  vm_map_t *orig = vm_map_user();
 
   vm_map_t *umap = vm_map_user();
 
@@ -194,6 +237,7 @@ static int copy_on_write_demo(void) {
 
   assert(obj != NULL);
 
+  klog("Allocating object finished. Pointer to this object is: %p", obj);
   seg = vm_segment_alloc(obj, start, end, VM_PROT_WRITE | VM_PROT_READ);
   klog("Allocating segment finished.");
   klog("Allocating segment finished. Pointer to segment is equal to: %p", seg);
@@ -206,12 +250,12 @@ static int copy_on_write_demo(void) {
        get_backing_object(seg));
   assert(error == 0);
 
-  error = vm_page_fault(umap, start + PAGESIZE, VM_PROT_WRITE);
+  error = vm_page_fault(umap, start, VM_PROT_WRITE);
 
   klog("After page fault. Error code is as follows: %d", error);
   assert(error == 0);
 
-  vm_map_switch(thread_self());
+  // vm_map_switch(thread_self());
   int cpid;
   error = do_fork(cow_routine, NULL, &cpid);
 
@@ -223,10 +267,12 @@ static int copy_on_write_demo(void) {
   do_waitpid(cpid, &status, 0, &pid);
   assert(cpid == pid);
 
-  vm_map_delete(umap);
+  klog("Child finished and parent woke up!");
+
+//  vm_map_delete(umap);
 
   /* Restore original vm_map */
-  //vm_map_activate(orig);
+//  vm_map_activate(orig);
 
   return KTEST_SUCCESS;
 }
