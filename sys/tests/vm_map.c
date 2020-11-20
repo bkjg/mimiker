@@ -357,13 +357,16 @@ static void cow_routine_child(void *arg) {
 }
 
 static int copy_on_write_demo(void) {
-//  vm_map_t *orig = vm_map_user();
+  vm_map_t *orig = vm_map_user();
 
-  vm_map_t *umap = vm_map_user();
+  vm_map_t *umap = vm_map_new();
 
   assert(umap != NULL);
 
   vm_map_activate(umap);
+
+  thread_t *td = thread_self();
+  td->td_proc->p_uspace = umap;
 
   const vaddr_t start = 0x10000000;
   const vaddr_t end = 0x30000000;
@@ -396,10 +399,11 @@ static int copy_on_write_demo(void) {
 
   klog("Child finished and parent woke up!");
 
-//  vm_map_delete(umap);
+  vm_map_delete(umap);
 
   /* Restore original vm_map */
-//  vm_map_activate(orig);
+  vm_map_activate(orig);
+  td->td_proc->p_uspace = orig;
 
   return KTEST_SUCCESS;
 }
