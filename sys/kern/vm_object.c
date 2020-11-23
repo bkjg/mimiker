@@ -26,20 +26,18 @@ vm_object_t *vm_object_alloc(vm_pgr_type_t type) {
 }
 
 void vm_object_free(vm_object_t *obj) {
+  SCOPED_MTX_LOCK(&obj->mtx);
+
   if (!refcnt_release(&obj->ref_counter)) {
     return;
   }
 
-  assert(obj->ref_counter == 0);
-
-  WITH_MTX_LOCK (&obj->mtx) {
-    while (!TAILQ_EMPTY(&obj->list)) {
-      vm_page_t *pg = TAILQ_FIRST(&obj->list);
-      TAILQ_REMOVE(&obj->list, pg, obj.list);
-      vm_page_free(pg);
-    }
+  while (!TAILQ_EMPTY(&obj->list)) {
+    vm_page_t *pg = TAILQ_FIRST(&obj->list);
+    TAILQ_REMOVE(&obj->list, pg, obj.list);
+    vm_page_free(pg);
   }
-  
+
   pool_free(P_VMOBJ, obj);
 }
 
@@ -112,14 +110,9 @@ vm_object_t *vm_object_clone(vm_object_t *obj) {
 
 void vm_map_object_dump(vm_object_t *obj) {
   vm_page_t *it;
-<<<<<<< HEAD
-  RB_FOREACH (it, vm_pagetree, &obj->tree)
-    klog("(vm-obj) offset: 0x%08lx, size: %ld", it->offset, it->size);
-=======
 
   WITH_MTX_LOCK (&obj->mtx) {
     RB_FOREACH (it, vm_pagetree, &obj->tree)
       klog("(vm-obj) offset: 0x%08lx, size: %ld", it->offset, it->size);
   }
->>>>>>> c3fa42e... make format
 }
