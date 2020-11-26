@@ -529,6 +529,7 @@ __noreturn void proc_exit(int exitstatus) {
    * being deleted. */
   vm_map_t *uspace = p->p_uspace;
   p->p_uspace = NULL;
+  klog("I'm going to delete my uspace: %p", uspace);
   vm_map_delete(uspace);
 
   fdtab_drop(p->p_fdtable);

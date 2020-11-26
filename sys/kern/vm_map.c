@@ -153,6 +153,7 @@ static void vm_map_insert_after(vm_map_t *map, vm_segment_t *after,
 }
 
 void vm_segment_destroy(vm_map_t *map, vm_segment_t *seg) {
+  kprintf("I'm going to destroy some segments! map: %p, seg: %p\n", map, seg);
   assert(mtx_owned(&map->mtx));
 
   TAILQ_REMOVE(&map->entries, seg, link);
@@ -161,13 +162,18 @@ void vm_segment_destroy(vm_map_t *map, vm_segment_t *seg) {
 }
 
 void vm_map_delete(vm_map_t *map) {
+  kprintf("Time to delete vm_map %p!\n", map);
   WITH_MTX_LOCK (&map->mtx) {
+    kprintf("I passed map mutex %p!\n", map);
     vm_segment_t *seg, *next;
     TAILQ_FOREACH_SAFE (seg, &map->entries, link, next)
       vm_segment_destroy(map, seg);
   }
+  kprintf("After destroying segments!\n");
   pmap_delete(map->pmap);
+  kprintf("After destroying pmap!\n");
   pool_free(P_VMMAP, map);
+  kprintf("After freeing pool!\n");
 }
 
 /* TODO: not implemented */
@@ -336,12 +342,15 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
         refcnt_acquire(&it->object->ref_counter);
         seg = it;
       } else {
-        obj = vm_object_alloc(VM_ANONYMOUS);
+//          obj = it->object;
+//          refcnt_acquire(&obj->ref_counter);
+        obj = vm_object_alloc(VM_SHADOW);
         obj->shadow_object = it->object;
 
-        it->object = vm_object_alloc(VM_ANONYMOUS);
+        it->object = vm_object_alloc(VM_SHADOW);
         it->object->shadow_object = obj->shadow_object;
 
+        kprintf("created child obj: %p, parent: %p, turning %p into shadow\n", obj, it->object, it->object->shadow_object);
         refcnt_acquire(&it->object->shadow_object->ref_counter);
 
         vm_object_set_readonly(it->object->shadow_object);
@@ -392,12 +401,15 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   vm_page_t *frame = vm_object_find_page(seg->object, offset);
 
   if (frame == NULL && obj->shadow_object && (fault_type == VM_PROT_READ)) {
+    klog("shadow_page_fault: Trying to find page for read %p", obj);
     vm_object_t *it = obj->shadow_object;
 
     while (frame == NULL && it != NULL) {
       frame = vm_object_find_page(it, offset);
       it = it->shadow_object;
     }
+
+    kprintf("shadow_page_fault: returned page for read is: %p\n", frame);
   }
 
   if (frame == NULL)

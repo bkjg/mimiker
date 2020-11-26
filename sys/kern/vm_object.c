@@ -28,6 +28,7 @@ vm_object_t *vm_object_alloc(vm_pgr_type_t type) {
 }
 
 void vm_object_free(vm_object_t *obj) {
+  kprintf("Freeing object: %p, my shadow is: %p\n", obj, obj->shadow_object);
   WITH_MTX_LOCK (&obj->mtx) {
     if (!refcnt_release(&obj->ref_counter)) {
       return;
@@ -38,17 +39,18 @@ void vm_object_free(vm_object_t *obj) {
       TAILQ_REMOVE(&obj->list, pg, obj.list);
       vm_page_free(pg);
     }
-
-    if (obj->shadow_object) {
-      refcnt_release(&obj->shadow_object->ref_counter);
-      vm_object_free(obj->shadow_object);
-    }
   }
+
+  if (obj->shadow_object) {
+    vm_object_free(obj->shadow_object);
+  }
+
   pool_free(P_VMOBJ, obj);
 }
 
 vm_page_t *vm_object_find_page(vm_object_t *obj, off_t offset) {
   vm_page_t find = {.offset = offset};
+  klog("DEBUG: Finding page for object %p and offset %llu", obj, offset);
   SCOPED_MTX_LOCK(&obj->mtx);
   return RB_FIND(vm_pagetree, &obj->tree, &find);
 }
