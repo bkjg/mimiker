@@ -3,9 +3,12 @@
 
 #include <sys/vm.h>
 #include <sys/vm_pager.h>
+#include "refcnt.h"
+#include "mutex.h"
 
 /* At the moment assume object is owned by only one vm_map */
 typedef struct vm_object {
+  mtx_t mtx;
   vm_pagelist_t list;
   vm_pagetree_t tree;
   size_t size;
