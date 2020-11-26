@@ -356,11 +356,6 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
          * now one more object points to it */
         refcnt_acquire(&obj->backing_object->ref_counter);
 
-        //        obj = vm_object_clone(it->object);
-
-        //        refcnt_acquire(&it->object->ref_counter);
-        //        obj = it->object;
-
         /* I assumed no more objects points to it->object->backing_object than
          * parent and child because then this memory would have to be
          * shared and private at the same time */

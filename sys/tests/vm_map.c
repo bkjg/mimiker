@@ -225,6 +225,8 @@ static int copy_on_write_simple_demo(void) {
   thread_t *td = thread_self();
   td->td_proc->p_uspace = umap;
 
+  kprintf("parent pmap %p, orig pmap: %p\n", umap, orig);
+
   const vaddr_t start = 0x10000000;
   const vaddr_t end = 0x30000000;
 

@@ -33,16 +33,22 @@ void vm_object_free(vm_object_t *obj) {
       return;
     }
 
+    klog("hi from vm_object_free!");
+
     while (!TAILQ_EMPTY(&obj->list)) {
       vm_page_t *pg = TAILQ_FIRST(&obj->list);
       TAILQ_REMOVE(&obj->list, pg, obj.list);
+      klog("I'm going to free page %p", pg);
       vm_page_free(pg);
+      klog("I finished frying this page");
     }
 
     if (obj->backing_object) {
       vm_object_free(obj->backing_object);
     }
   }
+
+  klog("Let's start pool_free");
   pool_free(P_VMOBJ, obj);
 }
 

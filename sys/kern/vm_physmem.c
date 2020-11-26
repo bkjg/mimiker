@@ -239,7 +239,9 @@ static void pm_free_from_seg(vm_physseg_t *seg, vm_page_t *page) {
   PAGECOUNT(page)++;
   page->flags |= PG_MANAGED;
   for (unsigned i = 0; i < page->size; i++) {
+    kprintf("DEBUG: inside for: pmap_page_remove\n");
     pmap_page_remove(&page[i]);
+    kprintf("DEBUG: after pmap_page_remove\n");
     page[i].flags &= ~PG_ALLOCATED;
     page[i].flags &= ~(PG_REFERENCED | PG_MODIFIED);
   }
@@ -253,10 +255,14 @@ void vm_page_free(vm_page_t *page) {
   klog("%s: free %lx of size %ld", __func__, page->paddr, page->size);
 
   TAILQ_FOREACH (seg_it, &seglist, seglink) {
+    kprintf("DEBUG: inside foreach\n");
     if (PG_START(page) >= seg_it->start && PG_END(page) <= seg_it->end) {
+      kprintf("DEBUG: going to do pm_free_from_seg\n");
       pm_free_from_seg(seg_it, page);
+      kprintf("DEBUG: after pm_free_from_seg\n");
       return;
     }
+    kprintf("DEBUG: after if\n");
   }
 
   panic("page out of range: %p", (void *)page->paddr);

@@ -371,9 +371,13 @@ bool pmap_extract(pmap_t *pmap, vaddr_t va, paddr_t *pap) {
 }
 
 void pmap_page_remove(vm_page_t *pg) {
+  kprintf("DEBUG: pmap_page_remove, page %p %p %d\n", pg, &pg->pv_list, !TAILQ_EMPTY(&pg->pv_list));
   while (!TAILQ_EMPTY(&pg->pv_list)) {
+    kprintf("DEBUG: pmap_page_remove, inside while\n");
     pv_entry_t *pv = TAILQ_FIRST(&pg->pv_list);
+    kprintf("DEBUG: pmap_page_remove, before getting pmap\n");
     pmap_t *pmap = pv->pmap;
+    kprintf("DEBUG: pmap_page_remove, pmap %p\n", pmap);
     vaddr_t va = pv->va;
     TAILQ_REMOVE(&pg->pv_list, pv, page_link);
     TAILQ_REMOVE(&pmap->pv_list, pv, pmap_link);

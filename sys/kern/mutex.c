@@ -3,6 +3,7 @@
 #include <sys/turnstile.h>
 #include <sys/sched.h>
 #include <sys/thread.h>
+#include <sys/klog.h>
 
 bool mtx_owned(mtx_t *m) {
   return (mtx_owner(m) == thread_self());
@@ -20,6 +21,10 @@ void _mtx_lock(mtx_t *m, const void *waitpt) {
   if (mtx_owned(m)) {
     if (!lk_recursive_p(m))
       panic("Sleeping mutex %p is not recursive!", m);
+
+    if (m->m_count > 0)
+      panic("locking mutex and increment counter %u, owner is %p", m->m_count,
+            mtx_owner(m));
     m->m_count++;
     return;
   }
