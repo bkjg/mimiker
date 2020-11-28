@@ -342,8 +342,6 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
         refcnt_acquire(&it->object->ref_counter);
         seg = it;
       } else {
-//          obj = it->object;
-//          refcnt_acquire(&obj->ref_counter);
         obj = vm_object_alloc(VM_SHADOW);
         obj->shadow_object = it->object;
 
@@ -401,7 +399,7 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
   vm_page_t *frame = vm_object_find_page(seg->object, offset);
 
   if (frame == NULL && obj->shadow_object && (fault_type == VM_PROT_READ)) {
-    klog("shadow_page_fault: Trying to find page for read %p", obj);
+    //klog("shadow_page_fault: Trying to find page for read %p", obj);
     vm_object_t *it = obj->shadow_object;
 
     while (frame == NULL && it != NULL) {
@@ -409,7 +407,7 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
       it = it->shadow_object;
     }
 
-    kprintf("shadow_page_fault: returned page for read is: %p\n", frame);
+   // kprintf("shadow_page_fault: returned page for read is: %p\n", frame);
   }
 
   if (frame == NULL)

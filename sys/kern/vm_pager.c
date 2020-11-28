@@ -26,7 +26,7 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
   static off_t prev_offset = -1;
   static proc_t *prev_proc = NULL;
 
-  kprintf("shadow_pager_fault for obj: %p and offset: %u, proc: %p\n", obj, offset, thread_self()->td_proc);
+  //kprintf("shadow_pager_fault for obj: %p and offset: %u, proc: %p\n", obj, offset, thread_self()->td_proc);
 
   assert(prev_obj != obj || offset != prev_offset || thread_self()->td_proc != prev_proc);
 
@@ -45,10 +45,10 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
   }
 
   if (pg == NULL) {
-    kprintf("shadow_page_fault: This is page from page fault handler from my backing object\n");
+    //kprintf("shadow_page_fault: This is page from page fault handler from my backing object\n");
     new_pg = it->pager->pgr_fault(obj, offset);
   } else {
-    kprintf("shadow_page_fault: This is copied page\n");
+    //kprintf("shadow_page_fault: This is copied page\n");
     new_pg = vm_page_alloc(1);
     pmap_copy_page(pg, new_pg);
     pmap_remove_page_readonly(new_pg);
@@ -58,7 +58,7 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
 
   vm_object_add_page(obj, offset, new_pg);
 
-  kprintf("returned page from shadow_page_fault handler: %p\n", new_pg);
+  //kprintf("returned page from shadow_page_fault handler: %p\n", new_pg);
   return new_pg;
 }
 
