@@ -358,6 +358,7 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
         refcnt_acquire(&shadow->ref_counter);
 
         vm_object_set_readonly(shadow);
+        vm_object_increase_pages_references(shadow);
       }
       seg = vm_segment_alloc(obj, it->start, it->end, it->prot);
       seg->flags = it->flags;

@@ -34,8 +34,16 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
   if (pg == NULL) {
     new_pg = it->pager->pgr_fault(obj, offset);
   } else {
-    new_pg = vm_page_alloc(1);
-    pmap_copy_page(pg, new_pg);
+    if (refcnt_release(&pg->ref_counter) == 0) {
+      new_pg = vm_page_alloc(1);
+      pmap_copy_page(pg, new_pg);
+    } else {
+      new_pg = pg;
+      pg->object = obj;
+
+      refcnt_acquire(&pg->ref_counter);
+      vm_object_remove_page(obj, pg);
+    }
   }
 
   vm_object_add_page(obj, offset, new_pg);
