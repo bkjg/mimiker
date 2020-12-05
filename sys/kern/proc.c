@@ -576,7 +576,9 @@ __noreturn void proc_exit(int exitstatus) {
 
   proc_unlock(p);
 
+  kprintf("before mutex\n");
   WITH_MTX_LOCK (all_proc_mtx) {
+    kprintf("After mutex\n");
     if (p->p_pid == 1)
       panic("'init' process died!");
 
@@ -627,6 +629,7 @@ __noreturn void proc_exit(int exitstatus) {
     }
   }
 
+  kprintf("Exit, bye bye. I will miss you all!\n");
   /* Can't call [noreturn] thread_exit() from within a WITH scope. */
   /* This thread is the last one in the process to exit. */
   thread_exit();
