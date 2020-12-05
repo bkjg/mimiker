@@ -167,7 +167,6 @@ void vm_map_delete(vm_map_t *map) {
       vm_segment_destroy(map, seg);
   }
   pmap_delete(map->pmap);
-  kprintf("Finished frying resources for map %p\n", map);
   pool_free(P_VMMAP, map);
 }
 

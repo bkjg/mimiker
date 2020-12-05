@@ -229,19 +229,13 @@ static void pm_free_from_seg(vm_physseg_t *seg, vm_page_t *page) {
   if (!(page->flags & PG_ALLOCATED))
     panic("page is already free: %p", (void *)page->paddr);
 
-  kprintf("%s: pm_free_from_seg, hello here seg %p with page %p\n", __func__,
-          seg, page);
-
   vm_page_t *buddy;
   while ((buddy = pm_find_buddy(seg, page))) {
-    kprintf("Trying to find a buddy!!!\n");
     TAILQ_REMOVE(FREELIST(buddy), buddy, freeq);
     PAGECOUNT(buddy)--;
     buddy->flags &= ~PG_MANAGED;
     page = pm_merge_buddies(page, buddy);
   }
-
-  kprintf("Look here, I found a buddy: %p!\n", buddy);
 
   TAILQ_INSERT_HEAD(FREELIST(page), page, freeq);
   PAGECOUNT(page)++;
@@ -251,7 +245,6 @@ static void pm_free_from_seg(vm_physseg_t *seg, vm_page_t *page) {
     page[i].flags &= ~PG_ALLOCATED;
     page[i].flags &= ~(PG_REFERENCED | PG_MODIFIED);
   }
-  kprintf("Leaving pm_free_from_seg\n");
 }
 
 void vm_page_free(vm_page_t *page) {
@@ -259,12 +252,11 @@ void vm_page_free(vm_page_t *page) {
 
   SCOPED_MTX_LOCK(physmem_lock);
 
-  kprintf("%s: free %x of size %d\n", __func__, page->paddr, page->size);
+  klog("%s: free %lx of size %ld\n", __func__, page->paddr, page->size);
 
   TAILQ_FOREACH (seg_it, &seglist, seglink) {
     if (PG_START(page) >= seg_it->start && PG_END(page) <= seg_it->end) {
       pm_free_from_seg(seg_it, page);
-      kprintf("After freeing page!\n");
       return;
     }
   }

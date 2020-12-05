@@ -3,7 +3,6 @@
 #include <sys/vm_object.h>
 #include <sys/vm_pager.h>
 #include <sys/vm_physmem.h>
-#include <sys/klog.h>
 
 static vm_page_t *dummy_pager_fault(vm_object_t *obj, off_t offset) {
   return NULL;
@@ -41,25 +40,18 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
       new_pg = vm_page_alloc(1);
       pmap_copy_page(pg, new_pg);
     } else {
-      // panic("...");
-
       WITH_MTX_LOCK (&it->mtx) {
         new_pg = pg;
 
         refcnt_acquire(&pg->ref_counter);
         refcnt_acquire(&pg->ref_counter);
-        klog("page %p, object %p, it %p, ref counter for page: %d", pg, obj, it,
-             pg->ref_counter);
       }
       vm_object_remove_page(it, pg);
 
       WITH_MTX_LOCK (&it->mtx) {
         refcnt_release(&pg->ref_counter);
-        klog("After removing page from vm_object, ref counter is %d",
-             pg->ref_counter);
       }
       if (it->npages == 0) {
-        panic("elo");
         prev->shadow_object = it->shadow_object;
 
         if (it->shadow_object != NULL) {
@@ -67,8 +59,6 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
         }
 
         vm_object_free(it);
-
-        panic("...");
       }
     }
   }

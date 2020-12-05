@@ -84,7 +84,6 @@ void vm_object_free(vm_object_t *obj) {
       vm_page_t *pg = TAILQ_FIRST(&obj->list);
       TAILQ_REMOVE(&obj->list, pg, obj.list);
       vm_page_free(pg);
-      kprintf("I'm freeing pages in object %p\n", obj);
     }
 
     if (obj->shadow_object) {
@@ -99,7 +98,6 @@ void vm_object_free(vm_object_t *obj) {
     }
   }
   pool_free(P_VMOBJ, obj);
-  klog("After freeing object!!! YAY");
 }
 
 vm_page_t *vm_object_find_page(vm_object_t *obj, off_t offset) {
