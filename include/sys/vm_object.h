@@ -15,8 +15,8 @@
  */
 
 typedef struct vm_object {
-  TAILQ_HEAD(vm_object_list, vm_object) shadows_list;
-  TAILQ_ENTRY(vm_object) link;
+//  TAILQ_HEAD(vm_object_list, vm_object) shadows_list;
+//  TAILQ_ENTRY(vm_object) link;
   mtx_t mtx;
   vm_pagelist_t list;   /* (@) List of pages */
   vm_pagetree_t tree;   /* (@) Tree of pages */
@@ -35,5 +35,5 @@ vm_page_t *vm_object_find_page(vm_object_t *obj, off_t offset);
 vm_object_t *vm_object_clone(vm_object_t *obj);
 void vm_map_object_dump(vm_object_t *obj);
 void vm_object_set_readonly(vm_object_t *obj);
-void vm_object_increase_pages_references(vm_object_t *obj);
+//void vm_object_increase_pages_references(vm_object_t *obj);
 #endif /* !_SYS_VM_OBJECT_H_ */
