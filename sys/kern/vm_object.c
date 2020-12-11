@@ -74,6 +74,8 @@ bool vm_object_add_page_no_lock(vm_object_t *obj, off_t offset,
 static void merge_shadow(vm_object_t *shadow) {
   vm_object_t *elem;
 
+  SCOPED_RW_ENTER(&shadow->mtx, RW_WRITER);
+
   TAILQ_FOREACH (elem, &shadow->shadows_list, link) {
     assert(elem != NULL);
 
@@ -82,9 +84,24 @@ static void merge_shadow(vm_object_t *shadow) {
     vm_page_t *pg;
     TAILQ_FOREACH (pg, &shadow->list, obj.list) {
       if (vm_object_find_page_no_lock(elem, pg->offset) == NULL) {
+        /* here releasing the counter for pg is missing */
         TAILQ_REMOVE(&shadow->list, pg, obj.list);
-        pg->object = elem;
         vm_object_add_page_no_lock(elem, pg->offset, pg);
+      }
+    }
+
+    elem->shadow_object = shadow->shadow_object;
+    elem->pager = shadow->pager;
+
+    if (elem->shadow_object) {
+      WITH_RW_LOCK (&elem->shadow_object->mtx, RW_WRITER) {
+        refcnt_acquire(&elem->shadow_object->ref_counter);
+        /* here can be the problem with reference counters in pages */
+        /* also maybe in case when we free an object that has the shadow object
+         */
+        /* because we decrease the reference counter for shadow, but not for his
+         * pages */
+        TAILQ_INSERT_HEAD(&elem->shadow_object->shadows_list, elem, link);
       }
     }
   }
@@ -111,6 +128,7 @@ void vm_object_free(vm_object_t *obj) {
 
       if (shadow->ref_counter == 2) {
         merge_shadow(shadow);
+        vm_object_free(obj->shadow_object);
       }
 
       vm_object_free(obj->shadow_object);

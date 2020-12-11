@@ -58,6 +58,7 @@ static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
         prev->pager = it->pager;
         if (it->shadow_object != NULL) {
           refcnt_acquire(&it->shadow_object->ref_counter);
+          TAILQ_INSERT_HEAD(&it->shadow_object->shadows_list, prev, link);
         }
 
         vm_object_free(it);
