@@ -340,17 +340,37 @@ vm_map_t *vm_map_clone(vm_map_t *map) {
   WITH_MTX_LOCK (&map->mtx) {
     vm_segment_t *it;
     TAILQ_FOREACH (it, &map->entries, link) {
+      vm_seg_flags_t flags = it->flags;
       vm_object_t *obj;
       vm_segment_t *seg;
+      vm_object_t *shadow;
 
       if (it->flags & VM_SEG_SHARED) {
         refcnt_acquire(&it->object->ref_counter);
         obj = it->object;
       } else {
-        /* vm_object_clone will clone the data from the vm_object_t
-         * and will return the new object with ref_counter equal to one */
-        obj = vm_object_clone(it->object);
+        if ((it->flags & VM_SEG_NEED_COPY) != 0 && it->object->npages == 0) {
+          obj = vm_object_alloc(VM_SHADOW);
+          shadow = it->object->shadow_object;
+          obj->shadow_object = shadow;
+        } else {
+          shadow = it->object;
+          obj = vm_object_alloc(VM_SHADOW);
+          obj->shadow_object = shadow;
+          it->object = vm_object_alloc(VM_SHADOW);
+          it->object->shadow_object = shadow;
+          vm_object_set_readonly(shadow);
+          TAILQ_INSERT_HEAD(&shadow->shadows_list, it->object, link);
+        }
+
+        TAILQ_INSERT_HEAD(&shadow->shadows_list, obj, link);
+        refcnt_acquire(&shadow->ref_counter);
+        vm_object_increase_pages_references(shadow);
+
+        flags |= VM_SEG_NEED_COPY;
+        it->flags |= VM_SEG_NEED_COPY;
       }
+
       seg = vm_segment_alloc(obj, it->start, it->end, it->prot, it->flags);
       TAILQ_INSERT_TAIL(&new_map->entries, seg, link);
       new_map->nentries++;
@@ -393,7 +413,17 @@ int vm_page_fault(vm_map_t *map, vaddr_t fault_addr, vm_prot_t fault_type) {
 
   vaddr_t fault_page = fault_addr & -PAGESIZE;
   vaddr_t offset = fault_page - seg->start;
-  vm_page_t *frame = vm_object_find_page(seg->object, offset);
+  vm_page_t *frame = vm_object_find_page(obj, offset);
+
+  if (frame == NULL && obj->shadow_object && fault_type == VM_PROT_READ &&
+      seg->prot == VM_PROT_READ) {
+    vm_object_t *it = obj->shadow_object;
+
+    while (frame == NULL && it != NULL) {
+      frame = vm_object_find_page(it, offset);
+      it = it->shadow_object;
+    }
+  }
 
   if (frame == NULL)
     frame = obj->pager->pgr_fault(obj, offset);

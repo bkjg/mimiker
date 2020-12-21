@@ -3,6 +3,7 @@
 
 #include <sys/types.h>
 #include <sys/queue.h>
+#include <sys/refcnt.h>
 #include <machine/vm_param.h>
 
 #define page_aligned_p(addr) is_aligned((addr), PAGESIZE)
@@ -45,7 +46,8 @@ typedef struct slab slab_t;
 /* Field marking and corresponding locks:
  * (@) pv_list_lock (in pmap.c)
  * (P) physmem_lock (in vm_physmem.c)
- * (O) vm_object::mtx */
+ * (O) vm_object::mtx
+ * (A) atomic */
 
 struct vm_page {
   union {
@@ -62,6 +64,7 @@ struct vm_page {
   paddr_t paddr;                  /* (P) physical address of page */
   pg_flags_t flags;               /* (P) page flags (used by physmem as well) */
   uint32_t size;                  /* (P) size of page in PAGESIZE units */
+  refcnt_t ref_counter;           /* (A) number of references to this page */
 };
 
 int do_mmap(vaddr_t *addr_p, size_t length, int u_prot, int u_flags);

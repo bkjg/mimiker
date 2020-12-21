@@ -17,7 +17,62 @@ static vm_page_t *anon_pager_fault(vm_object_t *obj, off_t offset) {
   return new_pg;
 }
 
+static vm_page_t *shadow_pager_fault(vm_object_t *obj, off_t offset) {
+  assert(obj != NULL);
+  assert(obj->shadow_object != NULL);
+
+  vm_page_t *pg = NULL;
+  vm_page_t *new_pg = NULL;
+
+  vm_object_t *it = obj;
+  vm_object_t *prev = obj;
+
+  WITH_RW_LOCK (&obj->mtx, RW_READER) {
+
+    while (pg == NULL && it->shadow_object != NULL) {
+      SCOPED_RW_ENTER(&it->shadow_object->mtx, RW_READER);
+      pg = vm_object_find_page(it->shadow_object, offset);
+      prev = it;
+      it = it->shadow_object;
+    }
+  }
+
+  if (pg == NULL) {
+    new_pg = it->pager->pgr_fault(obj, offset);
+  } else {
+    if (!refcnt_release(&pg->ref_counter)) {
+      new_pg = vm_page_alloc(1);
+      pmap_copy_page(pg, new_pg);
+    } else {
+      new_pg = pg;
+
+      refcnt_acquire(&pg->ref_counter);
+      refcnt_acquire(&pg->ref_counter);
+
+      vm_object_remove_page(it, pg);
+
+      refcnt_release(&pg->ref_counter);
+
+      if (it->npages == 0) {
+        prev->shadow_object = it->shadow_object;
+        prev->pager = it->pager;
+        if (it->shadow_object != NULL) {
+          refcnt_acquire(&it->shadow_object->ref_counter);
+          TAILQ_INSERT_HEAD(&it->shadow_object->shadows_list, prev, link);
+        }
+
+        vm_object_free(it);
+      }
+    }
+  }
+
+  vm_object_add_page(obj, offset, new_pg);
+
+  return new_pg;
+}
+
 vm_pager_t pagers[] = {
   [VM_DUMMY] = {.pgr_fault = dummy_pager_fault},
   [VM_ANONYMOUS] = {.pgr_fault = anon_pager_fault},
+  [VM_SHADOW] = {.pgr_fault = shadow_pager_fault},
 };
