@@ -11,6 +11,7 @@ int test_mmap(void);
 int test_munmap_sigsegv(void);
 int test_mprotect(void);
 int test_mmap_permissions(void);
+int test_mprotect_fewer_permissions(void);
 int test_sbrk(void);
 int test_sbrk_sigsegv(void);
 int test_misbehave(void);
