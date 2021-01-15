@@ -190,7 +190,6 @@ int test_mprotect_fewer_permissions(void) {
   if (setjmp(return_to) == 0) {
     char tmp = 'a';
     tmp = *(char *)addr;
-    assert(*(char *)addr == '0');
     assert(tmp == 'a');
     assert(sigsegv_handled == 2);
   }
