@@ -104,7 +104,8 @@ static void sigsegv_handler(int signo) {
   sigsegv_handled++;
   longjmp(return_to, 5);
 }
-int test_mmap_readonly(void) {
+
+int test_mprotect(void) {
   size_t pgsz = getpagesize();
   signal(SIGSEGV, sigsegv_handler);
   void *addr = mmap(NULL, pgsz * 8, PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
@@ -126,8 +127,35 @@ int test_mmap_readonly(void) {
   assert(sigsegv_handled == 1);
   assert(*(char *)addr == 0);
 
+
+  int error;
+  error = mprotect(addr, pgsz, PROT_READ | PROT_WRITE);
+  assert(error == 0);
+
+  printf("sigsegv handled = %d\n", sigsegv_handled);
+  *(char *)addr = '1';
+  assert(*(char *)addr == '1');
+  assert(sigsegv_handled == 1);
+
+  if (setjmp(return_to) == 0) {
+    *(char *)(addr + pgsz + 1) = 7;
+    printf("sigsegv handled = %d\n", sigsegv_handled);
+    assert(*(char *)(addr + pgsz + 1) == 0);
+    assert(sigsegv_handled == 2);
+  }
+
   /* restore original behavior */
   signal(SIGSEGV, SIG_DFL);
 
   return 0;
+}
+
+int test_mmap_permissions(void) {
+  void *addr = mmap(NULL, 2355, PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
+  assert(addr != MAP_FAILED);
+
+  /* Try to write to readonly memory. It should raise SIGSEGV */
+  memset(addr, -1, 2355);
+
+  return 1;
 }
