@@ -102,6 +102,7 @@ static jmp_buf return_to;
 static void sigsegv_handler(int signo) {
   printf("sigsegv handled!\n");
   sigsegv_handled++;
+  printf("Incremented!!!\n");
   longjmp(return_to, 5);
 }
 
@@ -136,13 +137,14 @@ int test_mprotect(void) {
   assert(*(char *)addr == '1');
   assert(sigsegv_handled == 1);
 
+  printf("Before if\n");
   if (setjmp(return_to) == 0) {
-    *(char *)(addr + pgsz + 1) = 7;
-    printf("sigsegv handled = %d\n", sigsegv_handled);
-    assert(*(char *)(addr + pgsz + 1) == 0);
-    assert(sigsegv_handled == 2);
+    *(char *)(addr + pgsz) = 7;
   }
 
+  assert(*(char *)(addr + pgsz + 1) == 0);
+  assert(sigsegv_handled == 2);
+  printf("Finish!!!\n");
   /* restore original behavior */
   signal(SIGSEGV, SIG_DFL);
 
