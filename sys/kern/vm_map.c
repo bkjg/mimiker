@@ -174,13 +174,24 @@ void vm_map_delete(vm_map_t *map) {
   pool_free(P_VMMAP, map);
 }
 
-static void vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
+static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
                              vaddr_t end) {
   if (seg->start == start && seg->end == end)
-    return;
+    return true;
 
   if (seg->start == start && seg->end > end) {
     vm_object_t *obj = vm_object_alloc(seg->object->pager - &pagers[0]);
+
+    if (obj == NULL) {
+      return false;
+    }
+
+    vm_segment_t *new_seg =
+      vm_segment_alloc(obj, start, end, seg->prot, seg->flags);
+
+    if (new_seg == NULL) {
+      return false;
+    }
 
     WITH_MTX_LOCK (&seg->object->mtx) {
       vm_page_t *pg, *next;
@@ -196,18 +207,10 @@ static void vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
       }
     }
 
-    vm_segment_t *new_seg =
-      vm_segment_alloc(obj, start, end, seg->prot, seg->flags);
-
-    if (new_seg == NULL) {
-      /* tutaj jakiś handling błędu, naprawienie stron itd */
-    }
-
-    /* TODO: jako że zmienił się start, to by się przydało zmienić offsety stron
-     * w tym segmencie */
     vaddr_t old_start = seg->start;
     seg->start = end;
 
+    /* fix offsets in pages in seg->object */
     WITH_MTX_LOCK (&seg->object->mtx) {
       vm_page_t *pg;
       TAILQ_FOREACH (pg, &seg->object->list, obj.list) {
@@ -226,7 +229,8 @@ static void vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
     int error = vm_map_insert_nolock(map, new_seg, flags);
 
     if (error) {
-      /* tutaj jakiś handling błędu */
+      /* TODO: restore pages in seg */
+      return false;
     }
   } else if (seg->start < start && seg->end == end) {
     vm_object_t *obj = vm_object_alloc(seg->object->pager - &pagers[0]);
@@ -293,8 +297,6 @@ static void vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
       /* tutaj jakiś handling błędu, naprawienie stron itd */
     }
 
-    /* TODO: jako że zmienił się start, to by się przydało zmienić offsety stron
-     * w tym segmencie */
     vaddr_t old_start = seg->start;
     seg->start = end;
 
@@ -325,6 +327,8 @@ static void vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
       /* tutaj jakiś handling błędu */
     }
   }
+
+  return true;
 }
 
 static void vm_segment_protect(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
@@ -350,9 +354,6 @@ static void vm_segment_protect(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
 void vm_map_protect(vm_map_t *map, vaddr_t start, vaddr_t end, vm_prot_t prot) {
   assert(map != NULL);
 
-  /* aktualnie jest taki problem, że segment może mieć inne uprawnienia niż
-   * strony wewnątrz niego, co jest złe i niedopuszczalne, bo potem
-   * vm_page_fault źle działa */
   WITH_MTX_LOCK (&map->mtx) {
     vaddr_t addr = start;
 
