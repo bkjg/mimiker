@@ -208,52 +208,51 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
   if (seg->start == start && seg->end == end)
     return true;
 
+  vm_object_t *obj = vm_object_alloc(seg->object->pager - &pagers[0]);
+
+  if (obj == NULL) {
+    return false;
+  }
+
+  vm_segment_t *new_seg =
+    vm_segment_alloc(obj, start, end, seg->prot, seg->flags);
+
+  if (new_seg == NULL) {
+    return false;
+  }
+
+  vaddr_t old_start = seg->start;
+
+  vm_flags_t flags = VM_FIXED;
+
+  if (new_seg->flags & VM_SEG_PRIVATE) {
+    flags |= VM_PRIVATE;
+  } else {
+    flags |= VM_SHARED;
+  }
+
+  off_t max_offset;
+  off_t offset_base = 0;
+
   if (seg->start == start && seg->end > end) {
-    vm_object_t *obj = vm_object_alloc(seg->object->pager - &pagers[0]);
-
-    if (obj == NULL) {
-      return false;
-    }
-
-    vm_segment_t *new_seg =
-      vm_segment_alloc(obj, start, end, seg->prot, seg->flags);
-
-    if (new_seg == NULL) {
-      return false;
-    }
+    max_offset = (off_t)(end - seg->start);
 
     WITH_MTX_LOCK (&seg->object->mtx) {
       vm_page_t *pg, *next;
       TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
-        if (pg->offset >= (off_t)(end - seg->start))
+        if (pg->offset >= max_offset)
           break;
 
         if (pg->offset >= (off_t)(start - seg->start)) {
           TAILQ_REMOVE(&seg->object->list, pg, obj.list);
           seg->object->npages--;
-          vm_object_add_page(obj, pg->offset, pg);
+          vm_object_add_page(obj, offset_base + pg->offset, pg);
         }
       }
     }
 
-    vaddr_t old_start = seg->start;
+
     seg->start = end;
-
-    /* fix offsets in pages in seg->object */
-    WITH_MTX_LOCK (&seg->object->mtx) {
-      vm_page_t *pg;
-      TAILQ_FOREACH (pg, &seg->object->list, obj.list) {
-        pg->offset = old_start + pg->offset - seg->start;
-      }
-    }
-
-    vm_flags_t flags = VM_FIXED;
-
-    if (new_seg->flags & VM_SEG_PRIVATE) {
-      flags |= VM_PRIVATE;
-    } else {
-      flags |= VM_SHARED;
-    }
 
     int error = vm_map_insert_nolock(map, new_seg, flags);
 
@@ -262,35 +261,20 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
       return false;
     }
   } else if (seg->start < start && seg->end == end) {
-    vm_object_t *obj = vm_object_alloc(seg->object->pager - &pagers[0]);
-
+    max_offset = (off_t)(start - seg->start);
+    offset_base = (off_t)(seg->start - start);
     WITH_MTX_LOCK (&seg->object->mtx) {
       vm_page_t *pg, *next;
       TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
-        if (pg->offset >= (off_t)(start - seg->start)) {
+        if (pg->offset >= max_offset) {
           TAILQ_REMOVE(&seg->object->list, pg, obj.list);
           seg->object->npages--;
-          vm_object_add_page(obj, (seg->start + pg->offset - start), pg);
+          vm_object_add_page(obj, offset_base + pg->offset, pg);
         }
       }
     }
 
-    vm_segment_t *new_seg =
-      vm_segment_alloc(obj, start, end, seg->prot, seg->flags);
-
     seg->end = start;
-
-    if (new_seg == NULL) {
-      /* tutaj jakiś handling błędu, naprawienie stron itd */
-    }
-
-    vm_flags_t flags = VM_FIXED;
-
-    if (new_seg->flags & VM_SEG_PRIVATE) {
-      flags |= VM_PRIVATE;
-    } else {
-      flags |= VM_SHARED;
-    }
 
     int error = vm_map_insert_nolock(map, new_seg, flags);
 
@@ -301,6 +285,8 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
     vm_object_t *obj_inside = vm_object_alloc(seg->object->pager - &pagers[0]);
     vm_object_t *obj_before = vm_object_alloc(seg->object->pager - &pagers[0]);
 
+    max_offset = (off_t)(start - seg->start);
+    offset_base = (off_t)(seg->start - start);
     WITH_MTX_LOCK (&seg->object->mtx) {
       vm_page_t *pg, *next;
       TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
@@ -309,8 +295,8 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
 
         TAILQ_REMOVE(&seg->object->list, pg, obj.list);
         seg->object->npages--;
-        if (pg->offset >= (off_t)(start - seg->start)) {
-          vm_object_add_page(obj_inside, (seg->start + pg->offset - start), pg);
+        if (pg->offset >= max_offset) {
+          vm_object_add_page(obj_inside, offset_base + pg->offset, pg);
         } else {
           vm_object_add_page(obj_before, pg->offset, pg);
         }
@@ -326,23 +312,7 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
       /* tutaj jakiś handling błędu, naprawienie stron itd */
     }
 
-    vaddr_t old_start = seg->start;
     seg->start = end;
-
-    WITH_MTX_LOCK (&seg->object->mtx) {
-      vm_page_t *pg;
-      TAILQ_FOREACH (pg, &seg->object->list, obj.list) {
-        pg->offset = old_start + pg->offset - seg->start;
-      }
-    }
-
-    vm_flags_t flags = VM_FIXED;
-
-    if (new_seg_inside->flags & VM_SEG_PRIVATE) {
-      flags |= VM_PRIVATE;
-    } else {
-      flags |= VM_SHARED;
-    }
 
     int error = vm_map_insert_nolock(map, new_seg_inside, flags);
 
@@ -354,6 +324,14 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
 
     if (error) {
       /* tutaj jakiś handling błędu */
+    }
+  }
+
+  /* fix offsets in pages in seg->object */
+  WITH_MTX_LOCK (&seg->object->mtx) {
+    vm_page_t *pg;
+    TAILQ_FOREACH (pg, &seg->object->list, obj.list) {
+      pg->offset = old_start + pg->offset - seg->start;
     }
   }
 
