@@ -222,109 +222,76 @@ static bool vm_segment_split(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
   }
 
   vaddr_t old_start = seg->start;
-
-  vm_flags_t flags = VM_FIXED;
-
-  if (new_seg->flags & VM_SEG_PRIVATE) {
-    flags |= VM_PRIVATE;
-  } else {
-    flags |= VM_SHARED;
-  }
-
   off_t max_offset;
   off_t offset_base = 0;
+  off_t wanted_offset;
+
+  vm_flags_t flags = VM_FIXED;
+  flags |= (new_seg->flags & VM_SEG_PRIVATE) ? VM_PRIVATE : VM_SHARED;
 
   if (seg->start == start && seg->end > end) {
     max_offset = (off_t)(end - seg->start);
-
-    WITH_MTX_LOCK (&seg->object->mtx) {
-      vm_page_t *pg, *next;
-      TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
-        if (pg->offset >= max_offset)
-          break;
-
-        if (pg->offset >= (off_t)(start - seg->start)) {
-          TAILQ_REMOVE(&seg->object->list, pg, obj.list);
-          seg->object->npages--;
-          vm_object_add_page(obj, offset_base + pg->offset, pg);
-        }
-      }
-    }
-
-
+    wanted_offset = (off_t)(start - seg->start);
     seg->start = end;
-
-    int error = vm_map_insert_nolock(map, new_seg, flags);
-
-    if (error) {
-      /* TODO: restore pages in seg */
-      return false;
-    }
   } else if (seg->start < start && seg->end == end) {
-    max_offset = (off_t)(start - seg->start);
+    wanted_offset = (off_t)(start - seg->start);
     offset_base = (off_t)(seg->start - start);
-    WITH_MTX_LOCK (&seg->object->mtx) {
-      vm_page_t *pg, *next;
-      TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
-        if (pg->offset >= max_offset) {
-          TAILQ_REMOVE(&seg->object->list, pg, obj.list);
-          seg->object->npages--;
-          vm_object_add_page(obj, offset_base + pg->offset, pg);
-        }
-      }
-    }
-
+    max_offset = (off_t)seg->end;
     seg->end = start;
-
-    int error = vm_map_insert_nolock(map, new_seg, flags);
-
-    if (error) {
-      /* tutaj jakiś handling błędu */
-    }
   } else { /* seg->start < start && seg->end > end */
-    vm_object_t *obj_inside = vm_object_alloc(seg->object->pager - &pagers[0]);
     vm_object_t *obj_before = vm_object_alloc(seg->object->pager - &pagers[0]);
-
-    max_offset = (off_t)(start - seg->start);
+    max_offset = (off_t)(end - seg->start);
     offset_base = (off_t)(seg->start - start);
+    wanted_offset = (off_t)(start - seg->start);
+    
     WITH_MTX_LOCK (&seg->object->mtx) {
       vm_page_t *pg, *next;
       TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
-        if (pg->offset >= (off_t)(end - seg->start))
+        if (pg->offset >= wanted_offset)
           break;
 
-        TAILQ_REMOVE(&seg->object->list, pg, obj.list);
-        seg->object->npages--;
-        if (pg->offset >= max_offset) {
-          vm_object_add_page(obj_inside, offset_base + pg->offset, pg);
-        } else {
+        if (pg->offset < wanted_offset) {
+          TAILQ_REMOVE(&seg->object->list, pg, obj.list);
+          seg->object->npages--;
           vm_object_add_page(obj_before, pg->offset, pg);
         }
       }
     }
 
-    vm_segment_t *new_seg_inside =
-      vm_segment_alloc(obj_inside, start, end, seg->prot, seg->flags);
     vm_segment_t *new_seg_before =
       vm_segment_alloc(obj_before, seg->start, start, seg->prot, seg->flags);
 
-    if (new_seg_inside == NULL || new_seg_before == NULL) {
+    if (new_seg_before == NULL) {
       /* tutaj jakiś handling błędu, naprawienie stron itd */
     }
 
     seg->start = end;
 
-    int error = vm_map_insert_nolock(map, new_seg_inside, flags);
+    int error = vm_map_insert_nolock(map, new_seg_before, flags);
 
     if (error) {
       /* tutaj jakiś handling błędu */
     }
+  }
 
-    error = vm_map_insert_nolock(map, new_seg_before, flags);
+  WITH_MTX_LOCK (&seg->object->mtx) {
+    vm_page_t *pg, *next;
+    TAILQ_FOREACH_SAFE (pg, &seg->object->list, obj.list, next) {
+      if (pg->offset >= max_offset)
+        break;
 
-    if (error) {
-      /* tutaj jakiś handling błędu */
+      if (pg->offset >= wanted_offset) {
+        TAILQ_REMOVE(&seg->object->list, pg, obj.list);
+        seg->object->npages--;
+        vm_object_add_page(obj, offset_base + pg->offset, pg);
+      }
     }
+  }
+
+  int error = vm_map_insert_nolock(map, new_seg, flags);
+
+  if (error) {
+    /* tutaj jakiś handling błędu */
   }
 
   /* fix offsets in pages in seg->object */
