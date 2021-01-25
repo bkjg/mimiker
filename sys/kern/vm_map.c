@@ -175,6 +175,8 @@ void vm_segment_destroy_range(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
   vm_object_remove_range(seg->object, start - seg->start, length);
   pmap_remove(map->pmap, start, end);
 
+  vaddr_t old_start = seg->start;
+
   if (seg->start == start) {
     seg->start = end;
   } else if (seg->end == end) {
@@ -187,6 +189,14 @@ void vm_segment_destroy_range(vm_map_t *map, vm_segment_t *seg, vaddr_t start,
       vm_segment_alloc(obj, end, seg->end, seg->prot, seg->flags);
     seg->end = start;
     vm_map_insert_after(map, new_seg, seg);
+  }
+
+  /* fix offsets of pages in seg->object */
+  WITH_MTX_LOCK (&seg->object->mtx) {
+    vm_page_t *pg;
+    TAILQ_FOREACH (pg, &seg->object->list, obj.list) {
+      pg->offset = old_start + pg->offset - seg->start;
+    }
   }
 }
 
